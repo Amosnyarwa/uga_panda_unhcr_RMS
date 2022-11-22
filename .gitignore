@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+*.html
+inputs/*
+outputs/*
+support_files/*
+!/**/.gitkeep
