@@ -6,27 +6,46 @@ library(lubridate)
 library(glue)
 library(cluster)
 
+source("R/support_functions.R")
+
+
 # read data ---------------------------------------------------------------
 
-df_tool_data <- readxl::read_excel(path = "inputs/RMS_Uganda_2022_Data.xlsx") %>% 
+dataset_location <- "inputs/RMS_Uganda_2022_Data.xlsx"
+
+df_tool_data <- readxl::read_excel(path = dataset_location) %>% 
   mutate(i.check.uuid = `_uuid`,
          i.check.start_date = as_date(start),
          i.check.enumerator_id = as.character(enumerator_id),
+         i.check.district_name = case_when(settlement %in% c("rhino_camp") ~ "madi_okollo",
+                                           settlement %in% c("bidibidi") ~ "yumbe",
+                                           settlement %in% c("imvepi") ~ "terego",
+                                           settlement %in% c("palabek") ~ "lamwo",
+                                           settlement %in% c("kyangwali") ~ "kikube",
+                                           settlement %in% c("lobule") ~ "koboko",
+                                           settlement %in% c("nakivale") ~ "isingiro",
+                                           settlement %in% c("oruchinga") ~ "isingiro",
+                                           settlement %in% c("palorinya") ~ "obongi",
+                                           settlement %in% c("rwamwanja") ~ "kamwenge",
+                                           settlement %in% c("kyaka_ii") ~ "kyegegwa",
+                                           settlement %in% c("any_adjumani_settlements") ~ "adjumani",
+                                           TRUE ~ settlement),
+         district_name = i.check.district_name,
          i.check.settlement = settlement,
-         i.check.household_id = household_id) %>% 
-  filter(i.check.start_date > as_date("2022-11-23"))
+         i.check.point_number = household_id) %>% 
+  filter(i.check.start_date > as_date("2022-11-22"))
 
-hh_roster_data <- readxl::read_excel(path = dataset_location, sheet = "hh_roster")
+hh_roster_data <- readxl::read_excel(path = dataset_location, sheet = "S1")
 df_repeat_hh_roster_data <- df_tool_data %>% 
   inner_join(hh_roster_data, by = c("_uuid" = "_submission__uuid"))
 
 
-df_survey <- readxl::read_excel(path = "inputs/RMS_PILOT_v3.xlsx", sheet = "survey")
-df_choices <- readxl::read_excel(path = "inputs/RMS_PILOT_v3.xlsx", sheet = "choices")
+df_survey <- readxl::read_excel(path = "inputs/RMS_tool.xlsx", sheet = "survey")
+df_choices <- readxl::read_excel(path = "inputs/RMS_tool.xlsx", sheet = "choices")
 
-df_sample_data <- read_csv("inputs/RMS_sampling_hhids.csv") %>% 
-  janitor::clean_names() %>% 
-  rename(unique_hhid_number = id)
+# Read sample data
+df_sample_data <- read_csv("inputs/pa_rms_sampling_hhids.csv")
+  
 
 # output holder -----------------------------------------------------------
 
@@ -87,9 +106,17 @@ add_checks_data_to_list(input_list_name = "logic_output",input_df_name = "df_c_o
 
 # checks on hh_ids ----------------------------------------------------------
 
-sample_hhid_nos <- df_sample_data %>% 
-  pull(unique_hhid_number) %>% 
-  unique()
+if("status" %in% colnames(df_sample_data)){
+  sample_pt_nos <- df_sample_data %>% 
+    mutate(unique_pt_number = paste0(status, "_", Name)) %>% 
+    pull(unique_pt_number) %>% 
+    unique()
+}else{
+  sample_pt_nos <- df_sample_data %>% 
+    mutate(unique_pt_number = Name) %>% 
+    pull(unique_pt_number) %>% 
+    unique()
+}
 
 # duplicate hh_ids
 df_c_duplicate_hhid_nos <- check_duplicate_hhid_numbers(input_tool_data = df_tool_data,
@@ -98,7 +125,7 @@ df_c_duplicate_hhid_nos <- check_duplicate_hhid_numbers(input_tool_data = df_too
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_duplicate_hhid_nos")
 
 # hh_id does not exist in sample
-df_c_hhid_not_in_sample <- check_hhid_number_not_in_samples(input_tool_data = df_tool_data, 
+df_c_hhid_not_in_sample <- check_hhid_number_not_in_samples(input_tool_data = df_tool_data,
                                                             input_sample_hhid_nos_list = sample_hhid_nos)
 
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_hhid_not_in_sample")
@@ -115,41 +142,32 @@ add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_ot
 
 # logical checks for different responses ----------------------------------
 
-# Respondent reports 'crop production on own land' as a livelihood, but reports to not have arable land. i.e. 
-#(selected(${hh_primary_livelihood}, "crop_production_on_own_land") OR selected(${other_livelihoods_hh_engaged_in}, 
-#"crop_production_on_own_land")) AND farming_land_availability = 'no'
+# Respondent age not given in the hh roster. i.e. respondent_age != age in the hh roster
 
-# If respondent reports "Ebola is not real, there are no symptoms", but reports that "There is an increased chance of getting Ebola 
-# at the Ebola treatment centres ", check
-
-df_ebola_symptoms <- df_tool_data %>% 
-  filter(recm_no_centre_reason == "there_is_an_increased_chance_of_getting_ebola_at_the_ebola_treatment_centres_", (recm_no_centre_reason %in% c("there_is_an_increased_chance_of_getting_ebola_at_the_ebola_treatment_centres_") |
-                                               str_detect(string = other_livelihoods_hh_engaged_in, pattern = "there_is_an_increased_chance_of_getting_ebola_at_the_ebola_treatment_centres_"))) %>% 
+df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>%
+  filter(status == "refugee")  %>%
+  group_by(`_uuid`) %>%
+  mutate(int.hoh_bio = ifelse(respondent_age == HH07, "given", "not")) %>% 
+  filter(!str_detect(string = paste(int.hoh_bio, collapse = ":"), pattern = "given")) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup() %>% 
   mutate(i.check.type = "change_response",
-         i.check.name = "there_is_an_increased_chance_of_getting_ebola_at_the_ebola_treatment_centres_",
-         i.check.current_value = there_is_an_increased_chance_of_getting_ebola_at_the_ebola_treatment_centres_,
+         i.check.name = "respondent_age ",
+         i.check.current_value = as.character(respondent_age),
          i.check.value = "",
-         i.check.issue_id = "logic_c_symptoms",
-         i.check.issue = glue("there_is_an_increased_chance_of_getting_ebola_at_the_ebola_treatment_centres_: {there_is_an_increased_chance_of_getting_ebola_at_the_ebola_treatment_centres_}, but recm_no_centre_reason: {recm_no_centre_reason} and other_livelihoods_hh_engaged_in: {other_livelihoods_hh_engaged_in}"),
+         i.check.issue_id = "logic_c_hoh_details_and_hh_roster_1",
+         i.check.issue = glue("respondent_age : {respondent_age}, respondent age not given in the hh_roster"),
          i.check.other_text = "",
          i.check.checked_by = "",
          i.check.checked_date = as_date(today()),
-         i.check.comment = "", 
+         i.check.comment = "",
          i.check.reviewed = "",
          i.check.adjust_log = "",
-         i.check.so_sm_choices = "") %>% 
-  dplyr::select(starts_with("i.check.")) %>% 
+         i.check.so_sm_choices = "") %>%
+  dplyr::select(starts_with("i.check.")) %>%
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_livelihood_crop_production_on_own_land_1")
-
-
-
-
-
-
-
-
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hoh_details_and_hh_roster_1")
 
 
 
@@ -159,7 +177,7 @@ add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh
 df_combined_checks <- bind_rows(logic_output)
 
 # output the combined checks
-write_csv(x = df_combined_checks, file = paste0("outputs/", butteR::date_file_prefix(), "_combined_checks_RMS.csv"), na = "")
+write_csv(x = df_combined_checks, file = paste0("outputs/", butteR::date_file_prefix(), "_combined_checks_rms.csv"), na = "")
 
 
 # similarity and silhouette analysis --------------------------------------
