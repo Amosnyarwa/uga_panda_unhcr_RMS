@@ -46,6 +46,7 @@ df_choices <- readxl::read_excel(path = "inputs/RMS_tool.xlsx", sheet = "choices
 # Read sample data
 df_sample_data <- read_csv("inputs/pa_rms_sampling_hhids.csv")
   
+  
 
 # output holder -----------------------------------------------------------
 
@@ -118,18 +119,19 @@ if("status" %in% colnames(df_sample_data)){
     unique()
 }
 
-# duplicate hh_ids
-df_c_duplicate_hhid_nos <- check_duplicate_hhid_numbers(input_tool_data = df_tool_data,
-                                                        input_sample_hhid_nos_list = sample_hhid_nos)
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_duplicate_hhid_nos")
+# duplicate point numbers
+df_duplicate_pt_nos <- check_duplicate_pt_numbers(input_tool_data = df_tool_data, 
+                                                  input_sample_pt_nos_list = sample_pt_nos)
 
-# hh_id does not exist in sample
-df_c_hhid_not_in_sample <- check_hhid_number_not_in_samples(input_tool_data = df_tool_data,
-                                                            input_sample_hhid_nos_list = sample_hhid_nos)
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_duplicate_pt_nos")
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_hhid_not_in_sample")
+# point number does not exist in sample
 
+df_pt_number_not_in_sample <- check_pt_number_not_in_samples(input_tool_data = df_tool_data, 
+                                                             input_sample_pt_nos_list = sample_pt_nos)
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_pt_number_not_in_sample")
 
 # others checks -----------------------------------------------------------
 
