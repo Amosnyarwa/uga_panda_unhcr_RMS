@@ -108,6 +108,7 @@ add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_
 
 
 # checks on hh_ids ------------------------------------------------------
+
 if("status" %in% colnames(df_sample_data)){
   sample_pt_nos <- df_sample_data %>% 
     mutate(unique_pt_number = paste0(status, "_", Name)) %>% 
