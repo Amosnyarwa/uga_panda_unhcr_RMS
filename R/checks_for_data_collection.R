@@ -31,7 +31,7 @@ df_tool_data <- readxl::read_excel(path = dataset_location) %>%
          district_name = i.check.district_name,
          i.check.settlement = settlement,
          i.check.point_number = household_id,
-         point_number = i.check.point_number) %>% 
+         point_number = household_id) %>% 
   filter(i.check.start_date > as_date("2022-11-15"))
 
 hh_roster_data <- readxl::read_excel(path = dataset_location, sheet = "S1")
@@ -108,25 +108,31 @@ add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_
 
 
 # checks on hh_ids ------------------------------------------------------
+if("status" %in% colnames(df_sample_data)){
+  sample_pt_nos <- df_sample_data %>% 
+    mutate(unique_pt_number = paste0(status, "_", Name)) %>% 
+    pull(unique_pt_number) %>% 
+    unique()
+}else{
+  sample_pt_nos <- df_sample_data %>% 
+    mutate(unique_pt_number = Name) %>% 
+    pull(unique_pt_number) %>% 
+    unique()
+}
 
-sample_hhid_nos <- df_sample_data %>%
-  pull(hh_id) %>%
-  unique()
+# duplicate point numbers
+df_duplicate_pt_nos <- check_duplicate_pt_numbers(input_tool_data = df_tool_data, 
+                                                  input_sample_pt_nos_list = sample_pt_nos)
 
-# # duplicate hh_ids
-# df_c_duplicate_hhid_nos <- check_duplicate_hhid_numbers(input_tool_data = df_tool_data,
-#                                                         input_sample_hhid_nos_list = sample_hhid_nos)
-# 
-# add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_duplicate_hhid_nos")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_duplicate_pt_nos")
 
+# point number does not exist in sample
 
-# hh_id does not exist in sample
-# df_c_hhid_not_in_sample <- check_hhid_number_not_in_samples(input_tool_data = df_tool_data,
-#                                                             input_sample_hhid_nos_list = sample_hhid_nos)
-# 
-# 
-# 
-# add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_hhid_not_in_sample")
+df_pt_number_not_in_sample <- check_pt_number_not_in_samples(input_tool_data = df_tool_data, 
+                                                             input_sample_pt_nos_list = sample_pt_nos)
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_pt_number_not_in_sample")
+
 
 # others checks -----------------------------------------------------------
 
