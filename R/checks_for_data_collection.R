@@ -1,5 +1,3 @@
-# checks for data collection
-
 library(checksupporteR)
 library(tidyverse)
 library(lubridate)
@@ -11,7 +9,7 @@ source("R/support_functions.R")
 
 # read data ---------------------------------------------------------------
 
-dataset_location <- "inputs/RMS_Uganda_2022_Data.xlsx"
+dataset_location <- "inputs/RMS_data.xlsx"
 
 df_tool_data <- readxl::read_excel(path = dataset_location) %>% 
   mutate(i.check.uuid = `_uuid`,
@@ -32,33 +30,33 @@ df_tool_data <- readxl::read_excel(path = dataset_location) %>%
                                            TRUE ~ settlement),
          district_name = i.check.district_name,
          i.check.settlement = settlement,
-         i.check.point_number = household_id) %>% 
-  filter(i.check.start_date > as_date("2022-11-22"))
+         i.check.point_number = household_id,
+         point_number = i.check.point_number) %>% 
+  filter(i.check.start_date > as_date("2022-11-15"))
 
 hh_roster_data <- readxl::read_excel(path = dataset_location, sheet = "S1")
 df_repeat_hh_roster_data <- df_tool_data %>% 
   inner_join(hh_roster_data, by = c("_uuid" = "_submission__uuid"))
-
 
 df_survey <- readxl::read_excel(path = "inputs/RMS_tool.xlsx", sheet = "survey")
 df_choices <- readxl::read_excel(path = "inputs/RMS_tool.xlsx", sheet = "choices")
 
 # Read sample data
 df_sample_data <- read_csv("inputs/pa_rms_sampling_hhids.csv")
-  
-  
 
 # output holder -----------------------------------------------------------
 
 logic_output <- list()
 
+
 # data not meeting minimum requirements -----------------------------------
 
 # testing_data
 df_testing_data <- df_tool_data %>% 
-  filter(i.check.start_date < as_date("2022-11-23") | str_detect(string = household_id, pattern = fixed('test', ignore_case = TRUE))) %>% 
+  filter(i.check.start_date < as_date("2022-11-15") | str_detect(string = household_id, pattern = fixed('test', ignore_case = TRUE))) %>% 
   mutate(i.check.type = "remove_survey",
          i.check.name = "",
+         i.check.label = "",
          i.check.current_value = "",
          i.check.value = "",
          i.check.issue_id = "logic_c_testing_data",
@@ -75,13 +73,11 @@ df_testing_data <- df_tool_data %>%
 
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_testing_data")
 
-
 # time checks -------------------------------------------------------------
 
 # Time interval for the survey
 min_time_of_survey <- 20
 max_time_of_survey <- 120
-
 
 df_survey_time <- check_survey_time(input_tool_data = df_tool_data, 
                                     input_min_time = min_time_of_survey,
@@ -89,7 +85,9 @@ df_survey_time <- check_survey_time(input_tool_data = df_tool_data,
 
 add_checks_data_to_list(input_list_name = "logic_output",input_df_name = "df_survey_time")
 
+
 # check the time between surveys
+
 min_time_btn_surveys <- 5
 
 df_time_btn_surveys <- check_time_interval_btn_surveys(input_tool_data = df_tool_data, 
@@ -97,41 +95,38 @@ df_time_btn_surveys <- check_time_interval_btn_surveys(input_tool_data = df_tool
 
 add_checks_data_to_list(input_list_name = "logic_output",input_df_name = "df_time_btn_surveys")
 
-
 # outlier checks ----------------------------------------------------------
 
 df_c_outliers <- checksupporteR::check_outliers_cleaninginspector(input_tool_data = df_tool_data)
 
 add_checks_data_to_list(input_list_name = "logic_output",input_df_name = "df_c_outliers")
 
+df_c_outliers_hh_roster <- checksupporteR::check_outliers_cleaninginspector_repeats(input_tool_data = df_repeat_hh_roster_data,
+                                                                                    input_sheet_name = "hh_roster", input_repeat_cols = c("age"))
 
-# checks on hh_ids ----------------------------------------------------------
-
-if("status" %in% colnames(df_sample_data)){
-  sample_pt_nos <- df_sample_data %>% 
-    mutate(unique_pt_number = paste0(status, "_", Name)) %>% 
-    pull(unique_pt_number) %>% 
-    unique()
-}else{
-  sample_pt_nos <- df_sample_data %>% 
-    mutate(unique_pt_number = Name) %>% 
-    pull(unique_pt_number) %>% 
-    unique()
-}
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_outliers_hh_roster") 
 
 
-# duplicate point numbers
-df_duplicate_pt_nos <- check_duplicate_pt_numbers(input_tool_data = df_tool_data, 
-                                                  input_sample_pt_nos_list = sample_pt_nos)
+# checks on hh_ids ------------------------------------------------------
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_duplicate_pt_nos")
+sample_hhid_nos <- df_sample_data %>%
+  pull(hh_id) %>%
+  unique()
 
-# point number does not exist in sample
+# # duplicate hh_ids
+# df_c_duplicate_hhid_nos <- check_duplicate_hhid_numbers(input_tool_data = df_tool_data,
+#                                                         input_sample_hhid_nos_list = sample_hhid_nos)
+# 
+# add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_duplicate_hhid_nos")
 
-df_pt_number_not_in_sample <- check_pt_number_not_in_samples(input_tool_data = df_tool_data, 
-                                                             input_sample_pt_nos_list = sample_pt_nos)
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_pt_number_not_in_sample")
+# hh_id does not exist in sample
+# df_c_hhid_not_in_sample <- check_hhid_number_not_in_samples(input_tool_data = df_tool_data,
+#                                                             input_sample_hhid_nos_list = sample_hhid_nos)
+# 
+# 
+# 
+# add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_c_hhid_not_in_sample")
 
 # others checks -----------------------------------------------------------
 
@@ -142,7 +137,8 @@ df_others_data <- extract_other_specify_data(input_tool_data = df_tool_data,
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_others_data")
 
 
-# logical checks for different responses ----------------------------------
+# logical checks ----------------------------------------------------------
+
 
 # Respondent age not given in the hh roster. i.e. respondent_age != age in the hh roster
 
@@ -172,6 +168,60 @@ df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>%
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hoh_details_and_hh_roster_1")
 
 
+# Respondent select "pre/post natal check up" or "giving birth" in HACC02 but is a man. i.e. ${HACC02} = 4 or ${HACC02} = 5 yet 
+#  ${HH04} = 2
+
+# df_reason_sought_consultation <- df_repeat_hh_roster_data %>%
+#   filter(status == "refugee")  %>%
+#   group_by(`_uuid`) %>%
+#   mutate(int.hoh_bio = ifelse(respondent_age == age, "given", "not")) %>% 
+#   filter(!str_detect(string = paste(int.hoh_bio, collapse = ":"), pattern = "not")) %>% 
+#   filter(row_number() == 1) %>% 
+#   ungroup()%>% 
+#   filter(sex %in% c("2") & str_detect(string = HACC02, pattern = 4|5)) %>% 
+#   mutate(i.check.type = "change_response",
+#          i.check.name = "sex",
+#          i.check.current_value = sex,
+#          i.check.value = "",
+#          i.check.issue_id = "logic_c_hoh_details_and_hh_roster_2",
+#          i.check.issue = glue("sex : {sex}, HACC02 : {HACC02}"),
+#          i.check.other_text = "",
+#          i.check.checked_by = "",
+#          i.check.checked_date = as_date(today()),
+#          i.check.comment = "",
+#          i.check.reviewed = "",
+#          i.check.adjust_log = "",
+#          i.check.so_sm_choices = "") %>%
+#   dplyr::select(starts_with("i.check.")) %>%
+#   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
+# add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hoh_details_and_hh_roster_1")
+
+
+# Respondent says he received assistance in the past 6 months that is related to livelihood but declared having received no livelihood 
+# assistance in the past 6 months i.e. ${kind_asistance_received_list} = 'training_for_improving_skills'AND 
+# ${hh_received_livelihood_support} = 'no'
+# df_hh_received_livelihood_support_2 <- df_tool_data %>%
+#   filter(hh_received_livelihood_support %in% c("no") & 
+#            str_detect(string = kind_assistance_received, pattern = "training_for_improving_skills"))%>%
+#   mutate(i.check.type = "change_response",
+#          i.check.name = "hh_received_livelihood_support",
+#          i.check.label = "Have you and / or members of your household received livelihood support in the past 6 months?",
+#          i.check.current_value = hh_received_livelihood_support,
+#          i.check.value = "",
+#          i.check.issue_id = "logic_c_hh_received_livelihood_support_2",
+#          i.check.issue = glue("kind_assistance_received: {kind_assistance_received},
+#                               but hh_received_livelihood_support: {hh_received_livelihood_support}"),
+#          i.check.other_text = "",
+#          i.check.checked_by = "",
+#          i.check.checked_date = as_date(today()),
+#          i.check.comment = "",
+#          i.check.reviewed = "",
+#          i.check.adjust_log = "",
+#          i.check.so_sm_choices = "") %>%
+#   dplyr::select(starts_with("i.check.")) %>%
+#   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
 
 # combine and output checks -----------------------------------------------
 
@@ -179,42 +229,4 @@ add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_ho
 df_combined_checks <- bind_rows(logic_output)
 
 # output the combined checks
-write_csv(x = df_combined_checks, file = paste0("outputs/", butteR::date_file_prefix(), "_combined_checks_rms.csv"), na = "")
-
-
-# similarity and silhouette analysis --------------------------------------
-
-# silhouette analysis
-
-# NOTE: the column for "col_admin" is kept in the data
-omit_cols_sil <- c("start", "end", "today", "duration", "duration_minutes", 
-                   "consent_one", "consent_two",  "consent","hoh", "hoh_equivalent",
-                   "deviceid", "audit", "audit_URL", "instance_name", "end_survey","settlement_name",
-                   "demo_check", "hh_roster_note","edu_note","cami_note", "lcsi_note","fcs_note", "mdd_note", "end_note", "geopoint", "_geopoint_latitude", "_geopoint_altitude", "_geopoint_precision", "_id" ,"_submission_time","_validation_status","_notes","_status","_submitted_by","_tags","_index","Too short", "pmi_issues",
-                   "i.check.enumerator_id")
-
-data_similartiy_sil <- df_tool_data %>% 
-  select(- any_of(omit_cols_sil))
-
-df_sil_data <- calculateEnumeratorSimilarity(data = data_similartiy_sil,
-                                             input_df_survey = df_survey, 
-                                             col_enum = "enumerator_id",
-                                             col_admin = "settlement") %>% 
-  mutate(si2= abs(si))
-
-df_sil_data[order(df_sil_data$`si2`, decreasing = TRUE),!colnames(df_sil_data)%in%"si2"] %>%  
-  openxlsx::write.xlsx(paste0("outputs/", butteR::date_file_prefix(), "_silhouette_analysis_RMS.xlsx"))
-
-
-# similarity analysis
-
-data_similartiy <- df_tool_data %>% 
-  select(- any_of(c(omit_cols_sil, "settlement")))
-
-df_sim_data <- calculateDifferences(data = data_similartiy, 
-                                    input_df_survey = df_survey) %>% 
-  openxlsx::write.xlsx(paste0("outputs/", butteR::date_file_prefix(), 
-                              "_most_similar_analysis_RMS.xlsx"))
-
-
-
+write_csv(x = df_combined_checks, file = paste0("outputs/", butteR::date_file_prefix(), "combined_checks_livelihood.csv"), na = "")
