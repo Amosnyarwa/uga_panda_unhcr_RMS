@@ -9,9 +9,9 @@ source("R/support_functions.R")
 
 # read data ---------------------------------------------------------------
 
-dataset_location <- "inputs/RMS_data.xlsx"
+dataset_location_rms <- "inputs/RMS_data.xlsx"
 
-df_tool_data <- readxl::read_excel(path = dataset_location) %>% 
+df_tool_data <- readxl::read_excel(path = dataset_location_rms) %>% 
   mutate(i.check.uuid = `_uuid`,
          i.check.start_date = as_date(start),
          i.check.enumerator_id = as.character(enumerator_id),
@@ -34,7 +34,7 @@ df_tool_data <- readxl::read_excel(path = dataset_location) %>%
          point_number = i.check.point_number) %>% 
   filter(i.check.start_date > as_date("2022-11-22") & end_result == 1)
 
-hh_roster_data <- readxl::read_excel(path = dataset_location, sheet = "S1")
+hh_roster_data <- readxl::read_excel(path = dataset_location_rms, sheet = "S1")
 df_repeat_hh_roster_data <- df_tool_data %>% 
   inner_join(hh_roster_data, by = c("_uuid" = "_submission__uuid"))
 
@@ -88,12 +88,12 @@ add_checks_data_to_list(input_list_name = "logic_output",input_df_name = "df_sur
 
 # check the time between surveys
 
-min_time_btn_surveys <- 5
-
-df_time_btn_surveys <- check_time_interval_btn_surveys(input_tool_data = df_tool_data, 
-                                                       input_min_time = min_time_btn_surveys)
-
-add_checks_data_to_list(input_list_name = "logic_output",input_df_name = "df_time_btn_surveys")
+# min_time_btn_surveys <- 5
+# 
+# df_time_btn_surveys <- check_time_interval_btn_surveys(input_tool_data = df_tool_data, 
+#                                                        input_min_time = min_time_btn_surveys)
+# 
+# add_checks_data_to_list(input_list_name = "logic_output",input_df_name = "df_time_btn_surveys")
 
 # outlier checks ----------------------------------------------------------
 
@@ -167,35 +167,6 @@ df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>%
 
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hoh_details_and_hh_roster_1")
 
-
-# Respondent select "pre/post natal check up" or "giving birth" in HACC02 but is a man. i.e. ${HACC02} = 4 or ${HACC02} = 5 yet 
-#  ${HH04} = 2
-
-# df_reason_sought_consultation <- df_repeat_hh_roster_data %>%
-#   filter(status == "refugee")  %>%
-#   group_by(`_uuid`) %>%
-#   mutate(int.hoh_bio = ifelse(respondent_age == age, "given", "not")) %>% 
-#   filter(!str_detect(string = paste(int.hoh_bio, collapse = ":"), pattern = "not")) %>% 
-#   filter(row_number() == 1) %>% 
-#   ungroup()%>% 
-#   filter(sex %in% c("2") & str_detect(string = HACC02, pattern = 4|5)) %>% 
-#   mutate(i.check.type = "change_response",
-#          i.check.name = "sex",
-#          i.check.current_value = sex,
-#          i.check.value = "",
-#          i.check.issue_id = "logic_c_hoh_details_and_hh_roster_2",
-#          i.check.issue = glue("sex : {sex}, HACC02 : {HACC02}"),
-#          i.check.other_text = "",
-#          i.check.checked_by = "",
-#          i.check.checked_date = as_date(today()),
-#          i.check.comment = "",
-#          i.check.reviewed = "",
-#          i.check.adjust_log = "",
-#          i.check.so_sm_choices = "") %>%
-#   dplyr::select(starts_with("i.check.")) %>%
-#   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
-
-# add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hoh_details_and_hh_roster_1")
 
 
 # If EVD06 = "Ebola is not real, there are no symptoms", then EVD12 cannot be "Ebola can be cured on its own, 
@@ -299,6 +270,59 @@ df_evd_misconceptions_5 <- df_tool_data %>%
 
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_misconceptions_5")
 
+
+# Respondent select "pre/post natal check up" or "giving birth" in HACC02 but is a man. i.e. ${HACC02} = 4 or ${HACC02} = 5 yet 
+#  ${HH04} = 2
+
+df_reason_sought_consultation_6 <- df_repeat_hh_roster_data %>%
+  group_by(`_uuid`) %>%
+  mutate(int.hoh_bio = ifelse(respondent_age == age, "given", "not")) %>%
+  filter(!str_detect(string = paste(int.hoh_bio, collapse = ":"), pattern = "not")) %>%
+  filter(row_number() == 1) %>%
+  ungroup() %>% 
+  filter(HH04 == 2 & str_detect(string = HACC02, pattern = "4|5")) %>%
+  mutate(i.check.type = "change_response",
+         i.check.name = "HH04",
+         i.check.current_value = as.character(HH04),
+         i.check.value = "",
+         i.check.issue_id = "logic_c_reason_sought_consultation_6",
+         i.check.issue = glue("HH04 : {HH04} i.e. male, HACC02 : {HACC02} i.e. pre/Postnatal check-up or giving birth"),
+         i.check.other_text = "",
+         i.check.checked_by = "",
+         i.check.checked_date = as_date(today()),
+         i.check.comment = "",
+         i.check.reviewed = "",
+         i.check.adjust_log = "",
+         i.check.so_sm_choices = "") %>%
+  dplyr::select(starts_with("i.check.")) %>%
+  rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_reason_sought_consultation_6")
+
+
+# Respondent willing to participate in another exercise i.e. future_survey_participation "yes" and respondent_telephone given
+
+df_hh_wiiling_to_participate_7 <- df_tool_data %>% 
+  filter(future_survey_participation %in% c("yes") & !is.na(number)) %>% 
+  mutate(i.check.type = "change_response",
+         i.check.name = "number",
+         i.check.current_value = number,
+         i.check.value = "",
+         i.check.issue_id = "logic_c_hh_wiiling_to_participate_7",
+         i.check.issue = glue("respondent willing to participate in another exercise"),
+         i.check.other_text = "",
+         i.check.checked_by = "",
+         i.check.checked_date = as_date(today()),
+         i.check.comment = "", 
+         i.check.reviewed = "",
+         i.check.adjust_log = "",
+         i.check.so_sm_choices = "") %>% 
+  dplyr::select(starts_with("i.check.")) %>% 
+  rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_wiiling_to_participate_7")
+
+
 # combine and output checks -----------------------------------------------
 
 # combine checks
@@ -309,4 +333,3 @@ df_combined_checks <- bind_rows(logic_output) %>%
 
 # output the combined checks
 write_csv(x = df_combined_checks, file = paste0("outputs/", butteR::date_file_prefix(), "combined_checks_RMS.csv"), na = "")
-
