@@ -49,7 +49,7 @@ df_raw_data_for_roster <- df_raw_data |>
   filter(`_uuid` %in% df_cl_log_add_roster_data$uuid) |> 
   mutate(positionbelow18 = NA,
          HH02 = openssl::md5(paste("hoh", `_uuid`)),
-         HH04 = sex_hoh,
+         sex = HH04,
          age = age_hoh,
          school_aged = "0",
          hh_position = NA,
