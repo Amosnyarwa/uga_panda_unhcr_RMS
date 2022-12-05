@@ -36,7 +36,9 @@ df_raw_data <- readxl::read_excel(path = data_path, col_types = c_types) %>%
 
 # loops
 # S1 loop
-hh_roster <- readxl::read_excel(path = data_path, sheet = "S1") 
+hh_roster <- readxl::read_excel(path = data_path, sheet = "S1") %>% 
+  mutate(HH02 = openssl::md5(HH02),
+         personId = openssl::md5(personId)) 
 
 df_cl_log_add_roster_data <- df_cleaning_log |> 
   filter(issue_id %in% c("logic_c_hoh_details_and_hh_roster_1"))
@@ -45,14 +47,14 @@ return_cols_roster_add <- colnames(hh_roster)
 
 df_raw_data_for_roster <- df_raw_data |> 
   filter(`_uuid` %in% df_cl_log_add_roster_data$uuid) |> 
-  mutate(hh_member_position = NA,
+  mutate(positionbelow18 = NA,
          HH02 = openssl::md5(paste("hoh", `_uuid`)),
-         HH04 = HH04,
+         HH04 = sex_hoh,
          age = age_hoh,
          school_aged = "0",
          hh_position = NA,
          personId = as.character(HH02),
-         memberinfo = openssl::md5(paste(HH02, HH04, ",", age)),
+         personId = openssl::md5(paste(HH02, HH04, ",", age)),
          "_parent_table_name" = "RMS Uganda 2022",
          "_parent_index" = `_index`,
          "_submission__id" = `_id`,
@@ -79,7 +81,6 @@ hh_roster_with_added_rows <- bind_rows(hh_roster, df_raw_data_for_roster) |>
 df_raw_data_hh_roster <- df_raw_data %>% 
   select(-`_index`) %>% 
   inner_join(hh_roster_with_added_rows, by = c("_uuid" = "_submission__uuid") )
-
 
 
 # tool
@@ -118,16 +119,6 @@ df_cleaned_data_hh_roster <- implement_cleaning_support(input_df_raw_data = df_r
   mutate(across(.cols = -c(any_of(cols_to_escape), matches("_age$|^age_|uuid")),
                 .fns = ~ifelse(str_detect(string = ., pattern = "^[9]{2,9}$"), "NA", .)))
 
-df_cleaning_log_school <- df_cleaning_log %>% 
-  filter(uuid %in% df_raw_data_hh_repeat_school_enrollment$`_uuid`, name %in% colnames(df_raw_data_hh_repeat_school_enrollment))
-
-df_clean_data_hh_repeat_school_enrollment <- implement_cleaning_support(input_df_raw_data = df_raw_data_hh_repeat_school_enrollment,
-                                                                        input_df_survey = df_survey,
-                                                                        input_df_choices = df_choices,
-                                                                        input_df_cleaning_log = df_cleaning_log_school) %>% 
-  select(any_of(other_repeat_col), any_of(colnames(hh_repeat_school_enrollment)), `_index` = index, `_submission__uuid` = uuid) %>% 
-  mutate(across(.cols = -c(any_of(cols_to_escape), matches("_age$|^age_|uuid")),
-                .fns = ~ifelse(str_detect(string = ., pattern = "^[9]{2,9}$"), "NA", .)))
 
 
 # write final modified data -----------------------------------------------
