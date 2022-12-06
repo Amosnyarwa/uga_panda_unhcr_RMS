@@ -11,6 +11,8 @@ source("R/support_functions.R")
 
 dataset_location_rms <- "inputs/RMS_data.xlsx"
 
+dataset_location_hh_ids_rms <- "inputs/phone_data.xlsx"
+
 df_tool_data <- readxl::read_excel(path = dataset_location_rms) %>% 
   mutate(i.check.uuid = `_uuid`,
          i.check.start_date = as_date(start),
@@ -33,6 +35,10 @@ df_tool_data <- readxl::read_excel(path = dataset_location_rms) %>%
          i.check.point_number = household_id,
          point_number = i.check.point_number) %>% 
   filter(i.check.start_date > as_date("2022-11-22") & end_result == 1)
+
+df_hh_ids_data_rms <- readxl::read_excel(path = dataset_location_hh_ids)
+df_hh_ids_data_joined_rms <- df_tool_data %>% 
+  left_join(df_hh_ids_data_rms, by = c("number" = "phone_number"))  
 
 hh_roster_data <- readxl::read_excel(path = dataset_location_rms, sheet = "S1")
 df_repeat_hh_roster_data <- df_tool_data %>% 
@@ -155,7 +161,7 @@ df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>%
          i.check.value = "",
          i.check.issue_id = "logic_c_hoh_details_and_hh_roster_1",
          i.check.issue = glue("respondent_age : {respondent_age}, respondent age not given in the hh_roster"),
-         i.check.other_text = "",
+         i.check.other_text = "", 
          i.check.checked_by = "",
          i.check.checked_date = as_date(today()),
          i.check.comment = "",
@@ -300,18 +306,18 @@ df_reason_sought_consultation_6 <- df_repeat_hh_roster_data %>%
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_reason_sought_consultation_6")
 
 
-# Respondent willing to participate in another exercise i.e. future_survey_participation "yes" and respondent_telephone given
 
-df_hh_wiiling_to_participate_7 <- df_tool_data %>% 
-  filter(future_survey_participation %in% c("yes") & !is.na(number)) %>% 
+# hh ids in the dataset not same as hh ids in the unhcr list i.e. {household_id} != {hh_id}
+df_hh_ids_not_matching_7 <- df_hh_ids_data_joined_rms %>% 
+  filter(household_id != hh_id) %>%  
   mutate(i.check.type = "change_response",
-         i.check.name = "number",
-         i.check.current_value = number,
-         i.check.value = "",
-         i.check.issue_id = "logic_c_hh_wiiling_to_participate_7",
-         i.check.issue = glue("respondent willing to participate in another exercise"),
+         i.check.name = "household_id",
+         i.check.current_value = household_id,
+         i.check.value = hh_id,
+         i.check.issue_id = "logic_c_hh_ids_not_matching_7",
+         i.check.issue = glue(" unhcr_hh_id: {hh_id}, but enumerator household_id: {household_id} not same"),
          i.check.other_text = "",
-         i.check.checked_by = "",
+         i.check.checked_by = "MT",
          i.check.checked_date = as_date(today()),
          i.check.comment = "", 
          i.check.reviewed = "",
@@ -320,8 +326,76 @@ df_hh_wiiling_to_participate_7 <- df_tool_data %>%
   dplyr::select(starts_with("i.check.")) %>% 
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_wiiling_to_participate_7")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_ids_not_matching_7")
 
+
+
+# Respondent willing to participate in another exercise i.e. future_survey_participation "yes" and respondent_telephone given
+# df_hh_wiiling_to_participate_7 <- df_tool_data %>% 
+#   filter(future_survey_participation %in% c("yes") & !is.na(number)) %>% 
+#   mutate(i.check.type = "change_response",
+#          i.check.name = "number",
+#          i.check.current_value = number,
+#          i.check.value = "",
+#          i.check.issue_id = "logic_c_hh_wiiling_to_participate_7",
+#          i.check.issue = glue("respondent willing to participate in another exercise"),
+#          i.check.other_text = "",
+#          i.check.checked_by = "",
+#          i.check.checked_date = as_date(today()),
+#          i.check.comment = "", 
+#          i.check.reviewed = "",
+#          i.check.adjust_log = "",
+#          i.check.so_sm_choices = "") %>% 
+#   dplyr::select(starts_with("i.check.")) %>% 
+#   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+# 
+# add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_wiiling_to_participate_7")
+# 
+
+# phone numbers duplicated 
+df_hh_numbers_duplicated_8 <- df_hh_ids_data_joined_rms %>% 
+  arrange(start) %>% 
+  filter((duplicated(number))) %>% 
+  mutate(i.check.type = "remove_survey",
+         i.check.name = "number",
+         i.check.current_value = number,
+         i.check.value = "",
+         i.check.issue_id = "logic_c_hh_numbers_duplicated_8",
+         i.check.issue = glue(" number: {number}, number duplicated"),
+         i.check.other_text = "",
+         i.check.checked_by = "MT",
+         i.check.checked_date = as_date(today()),
+         i.check.comment = "", 
+         i.check.reviewed = "",
+         i.check.adjust_log = "",
+         i.check.so_sm_choices = "") %>% 
+  dplyr::select(starts_with("i.check.")) %>% 
+  rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_numbers_duplicated_8")
+
+
+# hh id numbers duplicated 
+df_hh_id_duplicated_9 <- df_hh_ids_data_joined_rms %>% 
+  arrange(start) %>% 
+  filter(duplicated(household_id)) %>% 
+  mutate(i.check.type = "remove_survey",
+         i.check.name = "household_id",
+         i.check.current_value = household_id,
+         i.check.value = "",
+         i.check.issue_id = "logic_c_hh_id_duplicated_9",
+         i.check.issue = glue("household_id: {household_id}, hh_id duplicated"),
+         i.check.other_text = "",
+         i.check.checked_by = "MT",
+         i.check.checked_date = as_date(today()),
+         i.check.comment = "", 
+         i.check.reviewed = "",
+         i.check.adjust_log = "",
+         i.check.so_sm_choices = "") %>% 
+  dplyr::select(starts_with("i.check.")) %>% 
+  rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_id_duplicated_9")
 
 # combine and output checks -----------------------------------------------
 
