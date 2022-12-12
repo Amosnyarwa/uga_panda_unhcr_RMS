@@ -36,9 +36,11 @@ df_tool_data <- readxl::read_excel(path = dataset_location_rms) %>%
          point_number = i.check.point_number) %>% 
   filter(i.check.start_date > as_date("2022-11-22") & end_result == 1)
 
-df_hh_ids_data_rms <- readxl::read_excel(path = dataset_location_hh_ids)
+df_hh_ids_data_rms <- readxl::read_excel(path = dataset_location_hh_ids_rms)
 df_hh_ids_data_joined_rms <- df_tool_data %>% 
   left_join(df_hh_ids_data_rms, by = c("number" = "phone_number"))  
+
+
 
 hh_roster_data <- readxl::read_excel(path = dataset_location_rms, sheet = "S1")
 df_repeat_hh_roster_data <- df_tool_data %>% 
@@ -146,11 +148,11 @@ add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_ot
 # logical checks ----------------------------------------------------------
 
 
-# Respondent age not given in the hh roster. i.e. respondent_age != age in the hh roster
+# Respondent details not given in the hh roster. i.e. respondent_age != HH07| respondent_age != age in the hh roster
 
-df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>%
-  filter(status == "refugee")  %>%
-  group_by(`_uuid`) %>%
+df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>% 
+  filter(status == "refugee" ) %>% 
+  group_by(`_uuid`) %>% 
   mutate(int.hoh_bio = ifelse(respondent_age == HH07|respondent_age == age, "given", "not")) %>% 
   filter(!str_detect(string = paste(int.hoh_bio, collapse = ":"), pattern = "given")) %>% 
   filter(row_number() == 1) %>% 
@@ -174,10 +176,37 @@ df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>%
 add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hoh_details_and_hh_roster_1")
 
 
+# Respondent is hoh and hoh details not given in the hh roster. i.e. hoh_yn == "yes" and HH03 != 1
+
+# df_hoh_details_and_hh_roster_2 <- df_repeat_hh_roster_data %>% 
+#   filter(hoh_yn == "yes" ) %>% 
+#   group_by(`_uuid`) %>% 
+#   mutate(int.hoh_bio = ifelse(HH03 == 1, "given", "not")) %>% 
+#   filter(!str_detect(string = paste(int.hoh_bio, collapse = ":"), pattern = "given")) %>% 
+#   filter(row_number() == 1) %>%
+#   ungroup() %>% 
+#   mutate(i.check.type = "change_response",
+#          i.check.name = "hoh_yn",
+#          i.check.current_value = hoh_yn,
+#          i.check.value = "",
+#          i.check.issue_id = "logic_c_hoh_details_and_hh_roster_2",
+#          i.check.issue = glue("hoh_yn : {hoh_yn}, hoh details not given in the hh_roster"),
+#          i.check.other_text = "", 
+#          i.check.checked_by = "",
+#          i.check.checked_date = as_date(today()),
+#          i.check.comment = "",
+#          i.check.reviewed = "",
+#          i.check.adjust_log = "",
+#          i.check.so_sm_choices = "") %>%
+#   dplyr::select(starts_with("i.check.")) %>%
+#   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+# 
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hoh_details_and_hh_roster_2")
 
 # If EVD06 = "Ebola is not real, there are no symptoms", then EVD12 cannot be "Ebola can be cured on its own, 
 # without action" or "Traditional treatments are better" or Religious treatments are better"
-df_evd_treatment_2 <- df_tool_data %>%
+df_evd_treatment_3 <- df_tool_data %>%
   filter(str_detect(string = EVD_symptoms, pattern = "ebola_is_not_real_there_are_no_symptoms") &
            str_detect(string = EVD_recm_no_healthfac, pattern = "ebola_can_be_cured_on_its_own_without_action|
                       traditional_treatments_are_better|religious_treatments_are_better"))%>%
@@ -185,7 +214,7 @@ df_evd_treatment_2 <- df_tool_data %>%
          i.check.name = "EVD_recm_no_healthfac",
          i.check.current_value = EVD_recm_no_healthfac,
          i.check.value = "",
-         i.check.issue_id = "logic_c_evd_treatment_2",
+         i.check.issue_id = "logic_c_evd_treatment_3",
          i.check.issue = glue("EVD_symptoms: {EVD_symptoms},
                               but EVD_recm_no_healthfac: {EVD_recm_no_healthfac}"),
          i.check.other_text = "",
@@ -198,12 +227,12 @@ df_evd_treatment_2 <- df_tool_data %>%
   dplyr::select(starts_with("i.check.")) %>%
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_treatment_2") 
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_treatment_3") 
 
 
 # If EVD08, or EVD09, or EVD11, or EVD12 = "Ebola is not real", then EVD13 cannot be any of the answers except 
 # "The ebola pandemic in Uganda is not real, therefore there are no transmissions (exclusive)" and "other"
-df_evd_transmission_modes_3 <- df_tool_data %>%
+df_evd_transmission_modes_4 <- df_tool_data %>%
   filter(!str_detect(string = EVD_transmission_modes, pattern = "the_ebola_pandemic_in_uganda_is_not_real|other") & 
            if_any(c(EVD_recm_no_hotline, EVD_recm_no_centre, EVD_recm_usual, EVD_recm_no_healthfac), 
                   ~str_detect(., "ebola_is_not_real"))) %>%
@@ -211,7 +240,7 @@ df_evd_transmission_modes_3 <- df_tool_data %>%
          i.check.name = "EVD_transmission_modes",
          i.check.current_value = EVD_transmission_modes,
          i.check.value = "",
-         i.check.issue_id = "logic_c_evd_transmission_modes_3",
+         i.check.issue_id = "logic_c_evd_transmission_modes_4",
          i.check.issue = glue("EVD_transmission_modes: {EVD_transmission_modes}, but has previously said ebola is not real"),
          i.check.other_text = "",
          i.check.checked_by = "",
@@ -223,11 +252,11 @@ df_evd_transmission_modes_3 <- df_tool_data %>%
   dplyr::select(starts_with("i.check.")) %>%
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_transmission_modes_3")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_transmission_modes_4")
 
 
 # If EVD08, or EVD09, or EVD11, or EVD12 = "Ebola is not real", then EVD14 cannot be any of the answers except "do not want to answer" and "other"
-df_evd_prevention_modes_4 <- df_tool_data %>%
+df_evd_prevention_modes_5 <- df_tool_data %>%
   filter(!str_detect(string = EVD_prevention_modes, pattern = "no_answer|other") & 
            if_any(c(EVD_recm_no_hotline, EVD_recm_no_centre, EVD_recm_usual, EVD_recm_no_healthfac), 
                   ~str_detect(., "ebola_is_not_real"))) %>%
@@ -235,7 +264,7 @@ df_evd_prevention_modes_4 <- df_tool_data %>%
          i.check.name = "EVD_prevention_modes",
          i.check.current_value = EVD_prevention_modes,
          i.check.value = "",
-         i.check.issue_id = "logic_c_evd_prevention_modes_4",
+         i.check.issue_id = "logic_c_evd_prevention_modes_5",
          i.check.issue = glue("EVD_prevention_modes: {EVD_prevention_modes}, but has previously said ebola is not real"),
          i.check.other_text = "",
          i.check.checked_by = "",
@@ -247,13 +276,13 @@ df_evd_prevention_modes_4 <- df_tool_data %>%
   dplyr::select(starts_with("i.check.")) %>%
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_prevention_modes_4")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_prevention_modes_5")
 
 
 # If EVD08, or EVD09, or EVD11, or EVD12 = "Ebola is not real" or if EVD06 = "Ebola is not real, there are no symptoms", then EVD18 cannot be 
 # "Survivors certified to be cured of Ebola could infect others through casual contact (e.g., hugging or shaking hands)" or "Would not buy fresh 
 # vegetables from survivor certified by government to be cured of Ebola" or "You cannot survive Ebola, it is a certain death"
-df_evd_misconceptions_5 <- df_tool_data %>%
+df_evd_misconceptions_6 <- df_tool_data %>%
   filter(str_detect(string = EVD_misconceptions, pattern = "survivors_certified_to_be_cured_of_ebola_could_infect_others_through_casual_contact|
                      would_not_buy_fresh_vegetables_from_survivor_certified_by_government_to_be_cured_of_ebola | you_cannot_survive_ebola_it_is_a_certain_death") & 
            (if_any(c(EVD_recm_no_hotline, EVD_recm_no_centre, EVD_recm_usual, EVD_recm_no_healthfac), 
@@ -262,7 +291,7 @@ df_evd_misconceptions_5 <- df_tool_data %>%
          i.check.name = "EVD_misconceptions",
          i.check.current_value = EVD_misconceptions,
          i.check.value = "",
-         i.check.issue_id = "logic_c_evd_misconceptions_5",
+         i.check.issue_id = "logic_c_evd_misconceptions_6",
          i.check.issue = glue("EVD_misconceptions: {EVD_misconceptions}, but has previously said ebola is not real"),
          i.check.other_text = "",
          i.check.checked_by = "",
@@ -274,15 +303,15 @@ df_evd_misconceptions_5 <- df_tool_data %>%
   dplyr::select(starts_with("i.check.")) %>%
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_misconceptions_5")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_misconceptions_6")
 
 
 # Respondent select "pre/post natal check up" or "giving birth" in HACC02 but is a man. i.e. ${HACC02} = 4 or ${HACC02} = 5 yet 
 #  ${HH04} = 2
 
-df_reason_sought_consultation_6 <- df_repeat_hh_roster_data %>%
+df_reason_sought_consultation_7 <- df_repeat_hh_roster_data %>%
   group_by(`_uuid`) %>%
-  mutate(int.hoh_bio = ifelse(respondent_age == age, "given", "not")) %>%
+  mutate(int.hoh_bio = ifelse(respondent_age == age | respondent_age == HH07, "given", "not")) %>%
   filter(!str_detect(string = paste(int.hoh_bio, collapse = ":"), pattern = "not")) %>%
   filter(row_number() == 1) %>%
   ungroup() %>% 
@@ -291,7 +320,7 @@ df_reason_sought_consultation_6 <- df_repeat_hh_roster_data %>%
          i.check.name = "HH04",
          i.check.current_value = as.character(HH04),
          i.check.value = "",
-         i.check.issue_id = "logic_c_reason_sought_consultation_6",
+         i.check.issue_id = "logic_c_reason_sought_consultation_7",
          i.check.issue = glue("HH04 : {HH04} i.e. male, HACC02 : {HACC02} i.e. pre/Postnatal check-up or giving birth"),
          i.check.other_text = "",
          i.check.checked_by = "",
@@ -303,18 +332,18 @@ df_reason_sought_consultation_6 <- df_repeat_hh_roster_data %>%
   dplyr::select(starts_with("i.check.")) %>%
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_reason_sought_consultation_6")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_reason_sought_consultation_7")
 
 
 
 # hh ids in the dataset not same as hh ids in the unhcr list i.e. {household_id} != {hh_id}
-df_hh_ids_not_matching_7 <- df_hh_ids_data_joined_rms %>% 
+df_hh_ids_not_matching_8 <- df_hh_ids_data_joined_rms %>% 
   filter(household_id != hh_id) %>%  
   mutate(i.check.type = "change_response",
          i.check.name = "household_id",
          i.check.current_value = household_id,
          i.check.value = hh_id,
-         i.check.issue_id = "logic_c_hh_ids_not_matching_7",
+         i.check.issue_id = "logic_c_hh_ids_not_matching_8",
          i.check.issue = glue(" unhcr_hh_id: {hh_id}, but enumerator household_id: {household_id} not same"),
          i.check.other_text = "",
          i.check.checked_by = "MT",
@@ -326,7 +355,7 @@ df_hh_ids_not_matching_7 <- df_hh_ids_data_joined_rms %>%
   dplyr::select(starts_with("i.check.")) %>% 
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_ids_not_matching_7")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_ids_not_matching_8")
 
 
 
@@ -353,14 +382,14 @@ add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh
 # 
 
 # phone numbers duplicated 
-df_hh_numbers_duplicated_8 <- df_hh_ids_data_joined_rms %>% 
+df_hh_numbers_duplicated_9 <- df_hh_ids_data_joined_rms %>% 
   arrange(start) %>% 
   filter((duplicated(number))) %>% 
   mutate(i.check.type = "remove_survey",
          i.check.name = "number",
          i.check.current_value = number,
          i.check.value = "",
-         i.check.issue_id = "logic_c_hh_numbers_duplicated_8",
+         i.check.issue_id = "logic_c_hh_numbers_duplicated_9",
          i.check.issue = glue(" number: {number}, number duplicated"),
          i.check.other_text = "",
          i.check.checked_by = "MT",
@@ -372,18 +401,18 @@ df_hh_numbers_duplicated_8 <- df_hh_ids_data_joined_rms %>%
   dplyr::select(starts_with("i.check.")) %>% 
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_numbers_duplicated_8")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_numbers_duplicated_9")
 
 
 # hh id numbers duplicated 
-df_hh_id_duplicated_9 <- df_hh_ids_data_joined_rms %>% 
+df_hh_id_duplicated_10 <- df_hh_ids_data_joined_rms %>% 
   arrange(start) %>% 
   filter(duplicated(household_id)) %>% 
   mutate(i.check.type = "remove_survey",
          i.check.name = "household_id",
          i.check.current_value = household_id,
          i.check.value = "",
-         i.check.issue_id = "logic_c_hh_id_duplicated_9",
+         i.check.issue_id = "logic_c_hh_id_duplicated_10",
          i.check.issue = glue("household_id: {household_id}, hh_id duplicated"),
          i.check.other_text = "",
          i.check.checked_by = "MT",
@@ -395,7 +424,37 @@ df_hh_id_duplicated_9 <- df_hh_ids_data_joined_rms %>%
   dplyr::select(starts_with("i.check.")) %>% 
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
-add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_id_duplicated_9")
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_hh_id_duplicated_10")
+
+
+# If EVD_misconceptions = "if_you_are_in_an_official_ebola_treatment_facility_you_have_even_more_chances_of_getting_ebola_andor_dying" & 
+#  EVD_recm_contact = "go_to_an_official_ebola_treatment_centre"
+df_evd_recomendation_for_contact_11 <- df_tool_data %>%
+  filter(str_detect(string = EVD_misconceptions, pattern = "if_you_are_in_an_official_ebola_treatment_facility_you_have_even_more_chances_of_getting_ebola_andor_dying") & 
+           str_detect(string = EVD_recm_contact, pattern = "go_to_an_official_ebola_treatment_centre")) %>%
+  mutate(i.check.type = "remove_option",
+         i.check.name = "EVD_misconceptions",
+         i.check.current_value = EVD_misconceptions,
+         i.check.value = "if_you_are_in_an_official_ebola_treatment_facility_you_have_even_more_chances_of_getting_ebola_andor_dying",
+         i.check.issue_id = "logic_c_evd_recomendation_for_contact_11",
+         i.check.issue = glue("EVD_recm_contact: {EVD_recm_contact}, but EVD_misconceptions: {EVD_misconceptions}"),
+         i.check.other_text = "",
+         i.check.checked_by = "",
+         i.check.checked_date = as_date(today()),
+         i.check.comment = "",
+         i.check.reviewed = "",
+         i.check.adjust_log = "",
+         i.check.so_sm_choices = "") %>%
+  dplyr::select(starts_with("i.check.")) %>%
+  rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_evd_recomendation_for_contact_11")
+
+
+# merging age coulmn missing data with column HH07 missing data
+# df_new_data <- df_repeat_hh_roster_data %>% 
+#   mutate(age = case_when(age >= 0  age, TRUE  HH07))
+
 
 # combine and output checks -----------------------------------------------
 
@@ -407,3 +466,8 @@ df_combined_checks <- bind_rows(logic_output) %>%
 
 # output the combined checks
 write_csv(x = df_combined_checks, file = paste0("outputs/", butteR::date_file_prefix(), "combined_checks_RMS.csv"), na = "")
+
+
+
+
+
