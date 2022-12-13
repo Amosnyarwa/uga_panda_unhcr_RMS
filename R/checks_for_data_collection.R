@@ -9,7 +9,7 @@ source("R/support_functions.R")
 
 # read data ---------------------------------------------------------------
 
-dataset_location_rms <- "inputs/RMS_data.xlsx"
+dataset_location_rms <- "inputs/RMS_Uganda_2022_Data.xlsx"
 
 dataset_location_hh_ids_rms <- "inputs/phone_data.xlsx"
 
@@ -33,8 +33,7 @@ df_tool_data <- readxl::read_excel(path = dataset_location_rms) %>%
          district_name = i.check.district_name,
          i.check.settlement = settlement,
          i.check.point_number = household_id,
-         point_number = i.check.point_number) %>% 
-  filter(i.check.start_date > as_date("2022-11-22") & end_result == 1)
+         point_number = i.check.point_number)
 
 df_hh_ids_data_rms <- readxl::read_excel(path = dataset_location_hh_ids_rms)
 df_hh_ids_data_joined_rms <- df_tool_data %>% 
@@ -44,6 +43,7 @@ df_hh_ids_data_joined_rms <- df_tool_data %>%
 
 hh_roster_data <- readxl::read_excel(path = dataset_location_rms, sheet = "S1")
 df_repeat_hh_roster_data <- df_tool_data %>% 
+  select(-`_index`) %>% 
   inner_join(hh_roster_data, by = c("_uuid" = "_submission__uuid"))
 
 df_survey <- readxl::read_excel(path = "inputs/RMS_tool.xlsx", sheet = "survey")
@@ -55,6 +55,28 @@ df_sample_data <- read_csv("inputs/pa_rms_sampling_hhids.csv")
 # output holder -----------------------------------------------------------
 
 logic_output <- list()
+
+# data with incomplete surveys
+
+df_data_with_incomplete_surveys <- df_tool_data %>% 
+  filter(end_result %in% c("2", "3") | is.na(end_result)) %>%
+  mutate(i.check.type = "remove_survey",
+         i.check.name = "household_id",
+         i.check.current_value = household_id,
+         i.check.value = "",
+         i.check.issue_id = "logic_c_data_with_incomplete_surveys_12",
+         i.check.issue = glue("incomplete surveys"),
+         i.check.other_text = "",
+         i.check.checked_by = "AN",
+         i.check.checked_date = as_date(today()),
+         i.check.comment = "",
+         i.check.reviewed = "1",
+         i.check.adjust_log = "",
+         i.check.so_sm_choices = "") %>%
+  dplyr::select(starts_with("i.check.")) %>%
+  rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
+
+add_checks_data_to_list(input_list_name = "logic_output", input_df_name = "df_data_with_incomplete_surveys")
 
 
 # data not meeting minimum requirements -----------------------------------
@@ -169,7 +191,9 @@ df_hoh_details_and_hh_roster_1 <- df_repeat_hh_roster_data %>%
          i.check.comment = "",
          i.check.reviewed = "",
          i.check.adjust_log = "",
-         i.check.so_sm_choices = "") %>%
+         i.check.so_sm_choices = "",
+         i.check.sheet = "s1",
+         i.check.index = `_index`) %>%
   dplyr::select(starts_with("i.check.")) %>%
   rename_with(~str_replace(string = .x, pattern = "i.check.", replacement = ""))
 
