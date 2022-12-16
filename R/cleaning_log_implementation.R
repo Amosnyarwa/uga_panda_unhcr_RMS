@@ -35,7 +35,11 @@ df_raw_data <- readxl::read_excel(path = data_path, col_types = c_types) |>
   mutate(number = "NA",
          number_confirm = "NA",
          mm_name = "NA",
-         name_individual = "NA") |> 
+         name_individual = "NA",
+         complainant_name = "NA",
+         respondent_telephone = "NA",
+         complainant_id = "NA",
+         name_pers_recording = "NA") |> 
   mutate(across(.cols = -c(contains(cols_to_escape)), 
                 .fns = ~ifelse(str_detect(string = ., 
                                           pattern = fixed(pattern = "N/A", ignore_case = TRUE)), "NA", .))) |> 
@@ -69,9 +73,8 @@ df_cleaning_log_main <-  df_cleaning_log |>
 df_cleaned_data <- implement_cleaning_support(input_df_raw_data = df_raw_data,
                                               input_df_survey = df_survey,
                                               input_df_choices = df_choices,
-                                              input_df_cleaning_log = df_cleaning_log_main) #|> 
-# mutate(across(.cols = -c(any_of(cols_to_escape), matches("_age$|^age_|uuid")),
-#               .fns = ~ifelse(str_detect(string = ., pattern = "^[9]{2,9}$"), "NA", .)))
+                                              input_df_cleaning_log = df_cleaning_log_main)|> 
+mutate(latestson = ifelse(latestson %in% c(","), NA, latestson))
 
 # clean repeats -----------------------------------------------------------
 
@@ -114,3 +117,4 @@ openxlsx::write.xlsx(x = list_of_clean_datasets,
                      file = paste0("outputs/", butteR::date_file_prefix(), 
                                    "_clean_data_unhcr_rms.xlsx"), 
                      overwrite = TRUE, keepNA = TRUE, na.string = "NA")
+
